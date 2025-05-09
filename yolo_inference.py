@@ -1,5 +1,9 @@
 from ultralytics import YOLO
 
-model = YOLO('yolov8n')
+model = YOLO('yolov8')
 
-model.predict('./input_videos/image.png', save=True)
+result = model.predict('./input_videos/videoclip.mp4', save=True)
+print(result)
+print("boxes:")
+for box in result[0].boxes:
+    print(box)
