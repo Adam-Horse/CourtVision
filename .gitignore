@@ -1,0 +1,28 @@
+# YOLO run outputs -- only keep the final best weights
+runs/tennis_ball_100ep/
+runs/tennis_ball_100ep-2/
+runs/tennis_ball_100ep-3/
+runs/tennis_ball_train/
+runs/test_infer/
+runs/detect/
+
+# Keep only the weights subfolder of the good run
+runs/tennis_ball_100ep-4/*.yaml
+runs/tennis_ball_100ep-4/*.png
+runs/tennis_ball_100ep-4/*.jpg
+runs/tennis_ball_100ep-4/*.csv
+runs/tennis_ball_100ep-4/weights/last.pt
+
+# Dataset cache
+*.cache
+
+# Input videos (large media)
+input_videos/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Roboflow API keys -- rotate before using notebook
+# training/tennis_ball_detector_training.ipynb  (kept but API key must be removed)
