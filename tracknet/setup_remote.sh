@@ -8,6 +8,9 @@ echo "==> Python / CUDA check"
 python3 -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 
 echo "==> Installing deps"
+# Many cloud images (Debian/Ubuntu PEP 668) mark the env "externally managed";
+# this flag lets pip install into it on an ephemeral box.
+export PIP_BREAK_SYSTEM_PACKAGES=1
 pip install -q gdown opencv-python-headless numpy
 
 mkdir -p datasets/tracknet_ds tracknet/weights
