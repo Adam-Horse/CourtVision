@@ -19,6 +19,16 @@ runs/tennis_ball_100ep-4/weights/last.pt
 # Input videos (large media)
 input_videos/
 
+# Output videos (large media)
+output_videos/
+
+# TrackNet dataset (2.5GB) and weights -- re-downloaded via tracknet/setup_remote.sh
+datasets/
+tracknet/weights/
+
+# Label-audit dumps
+cls_audit/
+
 # Python
 __pycache__/
 *.pyc
