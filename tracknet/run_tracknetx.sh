@@ -16,11 +16,20 @@ CONF="${CONF:-0.5}"                               # teacher confidence threshold
 EPOCHS="${EPOCHS:-40}"
 BATCH="${BATCH:-8}"
 
+PLAY="${PLAY_WEIGHTS:-runs/classify/runs/play_classifier_final/weights/best.pt}"
+
 DATA_ROOTS="$PUBLIC"
 if [ -n "$VIDEOS" ] && [ -d "$VIDEOS" ]; then
+  PLAY_ARG=""
+  if [ -f "$PLAY" ]; then
+    echo "==> play gate ON ($PLAY) - non-play clips will be dropped"
+    PLAY_ARG="--play-weights $PLAY"
+  else
+    echo "==> play gate OFF (no classifier at $PLAY)"
+  fi
   echo "==> auto-labeling $VIDEOS with teacher $TEACHER (conf>=$CONF)"
   python3 -m tracknet.autolabel --videos "$VIDEOS" --weights "$TEACHER" \
-      --out "$DISTILL" --conf "$CONF" --save-width 1280 --save-height 720
+      --out "$DISTILL" --conf "$CONF" --save-width 1280 --save-height 720 $PLAY_ARG
   DATA_ROOTS="$PUBLIC $DISTILL"
 else
   echo "==> no videos dir given; training on public set only"

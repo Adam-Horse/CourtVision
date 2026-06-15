@@ -22,6 +22,7 @@ Usage:
 """
 import argparse
 import csv
+import shutil
 from pathlib import Path
 
 import cv2
@@ -60,6 +61,27 @@ def _load_teacher(weights, device, force_cls):
     return fwd, in_w, in_h
 
 
+def _load_play_gate(weights, device):
+    """Return predict(frame)->P(play) using the trained YOLOv8n-cls model, or None.
+
+    Drops non-play frames (crowd / replay / closeups) before ball auto-labeling
+    so the distillation set is court-view play frames only.
+    """
+    if not weights:
+        return None
+    from ultralytics import YOLO
+    m = YOLO(weights)
+    play_idx = next((i for i, n in m.names.items() if n.lower() == "play"), None)
+    if play_idx is None:
+        print(f"  !! 'play' class not in {m.names}; play-gate disabled")
+        return None
+
+    def predict(frame):
+        r = m.predict(frame, verbose=False, device=device)[0]
+        return float(r.probs.data[play_idx])
+    return predict
+
+
 def _triplet(frames, in_w, in_h, device):
     chans = [cv2.resize(f, (in_w, in_h)).astype(np.float32) / 255.0 for f in frames]
     stacked = np.concatenate(chans, axis=2)             # H,W,9
@@ -72,7 +94,7 @@ def _in_clip(idx, clip_len, clip_stride):
     return (idx % clip_stride) < clip_len
 
 
-def process_video(path, out_game_dir, fwd, in_w, in_h, args, device):
+def process_video(path, out_game_dir, fwd, in_w, in_h, args, device, play_fn=None):
     from .heatmap import decode_heatmap
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
@@ -87,15 +109,27 @@ def process_video(path, out_game_dir, fwd, in_w, in_h, args, device):
     clip_id = -1
     clip_dir = None
     rows = []
-    written = 0
+    play_votes = []                                     # per-frame play flags
+    written = dropped = 0
 
     def flush():
-        if clip_dir is not None and rows:
-            with open(clip_dir / "Label.csv", "w", newline="") as fh:
-                w = csv.writer(fh)
-                w.writerow(["file name", "visibility", "x-coordinate",
-                            "y-coordinate", "status", "conf"])
-                w.writerows(rows)
+        nonlocal dropped
+        if clip_dir is None or not rows:
+            return 0
+        # Whole-clip play gate: keep only if enough frames are play (preserves
+        # frame-to-frame continuity within kept clips).
+        if play_fn is not None:
+            frac = sum(play_votes) / max(1, len(play_votes))
+            if frac < args.play_min:
+                shutil.rmtree(clip_dir, ignore_errors=True)
+                dropped += 1
+                return 0
+        with open(clip_dir / "Label.csv", "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["file name", "visibility", "x-coordinate",
+                        "y-coordinate", "status", "conf"])
+            w.writerows(rows)
+        return len(rows)
 
     while True:
         ok, frame = cap.read()
@@ -108,11 +142,14 @@ def process_video(path, out_game_dir, fwd, in_w, in_h, args, device):
         if len(buf) == 3 and _in_clip(idx, args.clip_len, args.clip_stride):
             cid = idx // args.clip_stride
             if cid != clip_id:                          # new clip -> new folder
-                flush()
-                rows = []
+                written += flush()
+                rows, play_votes = [], []
                 clip_id = cid
                 clip_dir = out_game_dir / f"Clip{cid:04d}"
                 clip_dir.mkdir(parents=True, exist_ok=True)
+
+            if play_fn is not None:
+                play_votes.append(1 if play_fn(frame) >= args.play_thresh else 0)
 
             inp = _triplet(buf, in_w, in_h, device)
             hm = fwd(inp)
@@ -131,21 +168,26 @@ def process_video(path, out_game_dir, fwd, in_w, in_h, args, device):
             cv2.imwrite(str(clip_dir / fname), save,
                         [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_q])
             rows.append([fname, vis, xc, yc, 0, round(float(peak), 3)])
-            written += 1
 
         idx += 1
         if idx % 500 == 0:
-            print(f"    {path.name}: {idx} frames, {written} labeled", flush=True)
+            print(f"    {path.name}: {idx} frames, {written} kept, "
+                  f"{dropped} clips dropped", flush=True)
 
-    flush()
+    written += flush()
     cap.release()
+    if play_fn is not None:
+        print(f"  {path.name}: {written} play frames kept, {dropped} non-play "
+              f"clips dropped")
     return written
 
 
 def main(args):
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
     fwd, in_w, in_h = _load_teacher(args.weights, device, args.cls)
-    print(f"[autolabel] teacher={args.weights} in={in_w}x{in_h} device={device}")
+    play_fn = _load_play_gate(args.play_weights, device)
+    print(f"[autolabel] teacher={args.weights} in={in_w}x{in_h} device={device} "
+          f"play_gate={'on' if play_fn else 'off'}")
 
     vids = sorted([p for p in Path(args.videos).iterdir()
                    if p.suffix.lower() in (".mp4", ".mkv", ".mov", ".avi")]) \
@@ -155,7 +197,7 @@ def main(args):
     for i, v in enumerate(vids):
         game_dir = out_root / f"{args.game_prefix}{i:03d}"
         print(f"[autolabel] {v.name} -> {game_dir.name}")
-        total += process_video(v, game_dir, fwd, in_w, in_h, args, device)
+        total += process_video(v, game_dir, fwd, in_w, in_h, args, device, play_fn)
     print(f"[autolabel] done. {len(vids)} videos, {total} pseudo-labeled frames "
           f"-> {out_root}")
 
@@ -176,5 +218,11 @@ if __name__ == "__main__":
     ap.add_argument("--save-height", type=int, default=0)
     ap.add_argument("--jpeg-q", type=int, default=90)
     ap.add_argument("--cls", action="store_true", help="teacher uses 256-class head")
+    ap.add_argument("--play-weights", default=None,
+                    help="YOLOv8n-cls play/court model; drops non-play clips")
+    ap.add_argument("--play-thresh", type=float, default=0.5,
+                    help="per-frame P(play) cutoff")
+    ap.add_argument("--play-min", type=float, default=0.6,
+                    help="min fraction of a clip's frames that must be play to keep it")
     ap.add_argument("--cpu", action="store_true")
     main(ap.parse_args())
