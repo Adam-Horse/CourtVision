@@ -1,0 +1,32 @@
+# Match videos for TrackNetX distillation data.
+# yt-dlp reads this file; ONLY full-line '#' comments are ignored
+# (inline trailing comments are NOT supported), so each URL sits alone.
+# Curated for diversity: surface x gender x era x fps x broadcaster.
+# Download with:  bash tracknet/fetch_videos.sh
+
+# hard - Sinner vs Alcaraz, US Open 2025 F (M, 60fps)
+https://youtu.be/TDdEVBgDqK4
+# hard - Djokovic vs Alcaraz, AO 2025 QF (M)
+https://youtu.be/ATI9B7ZLof8
+# hard - Swiatek vs Jabeur, US Open 2022 F (W, night)
+https://youtu.be/4LKEnBAmhSU
+
+# clay - Sinner vs Alcaraz, Rome 2025 F (M)
+https://youtu.be/6DnScrtyKDM
+# clay - Nadal vs Djokovic, RG 2012 F (M, older era)
+https://youtu.be/Tg2ERfDP9nE
+# clay - Swiatek vs Gauff, RG 2022 F (W)
+https://youtu.be/U1ODe0Yncig
+
+# grass - Federer vs Nadal, Wimbledon 2008 F (M, oldest era)
+https://youtu.be/mHsg2M25PzY
+# grass - Halep vs Serena, Wimbledon 2019 F (W)
+https://youtu.be/fduc5bZx3ss
+
+# optional extras (uncomment the URL line to also fetch):
+# Zverev vs Diallo, AO 2026 (M, hard)
+# https://youtu.be/aUCFs4rpmeE
+# Murray vs Federer, Wimbledon 2015 SF (M, grass)
+# https://youtu.be/jw8EOvLme3M
+# Murray vs Federer, AO 2014 QF (M, hard)
+# https://youtu.be/nsjOKdmXVpI
